@@ -1,0 +1,246 @@
+---
+title: "Valentine's Day Consumption"
+author: "Albertus, Yong Chee, Yan Xin, Jia Jie"
+date: "`r Sys.Date()`"
+output: 
+  html_document:
+    toc: true
+    toc_float: true
+---
+
+<style>
+#TOC {
+  color: #708090;
+  font-family: Calibri;
+  font-size: 16px; 
+  border-color: #708090;
+}
+body {
+  color: #202020;
+  font-family: Times New Roman;
+  background-color: #FFEAEE;
+  font-size: 16px
+}
+pre {
+  color: #708090;
+  background-color: #F8F8F8;
+}
+</style>
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(message = FALSE, warning = FALSE, include = TRUE,
+                      fig.align = "center",  out.width = "80%")
+```
+
+## Introduction
+
+### How does Valentine spending on gifts changes across years, gender and age?
+
+**Description**: The data set depicts the historical planned spending on Valentine's Day gifts from 2010 to 2022, across different genders and age groups. The data is sourced from a survey conducted by the National Retail Foundation, which collected the responses from 7,728 American consumers on 3 to 11 January annually.
+
+[Click here](https://www.kaggle.com/datasets/infinator/happy-valentines-day-2022) for more information on the data set.
+
+```{r}
+library(tidyverse)
+library(readxl)
+library(stringr)
+library(lubridate)
+library(ggthemes)
+historical_spending <- readr::read_csv('https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2024/2024-02-13/historical_spending.csv')
+gifts_age <- readr::read_csv('https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2024/2024-02-13/gifts_age.csv')
+gifts_gender <- readr::read_csv('https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2024/2024-02-13/gifts_gender.csv')
+```
+
+### Data cleaning
+
+Before we start plotting, we will clean the data before visualisation. From inspection, the data is untidy in which the columns and rows are the variables and the observation are the individual cells (similar to the data of `table4a` from `dplyr`). Hence there is a need to pivot longer such that each categories of Gifts have its own row. Here we will transform and clean the data in `historical_spending`, `gifts_gender` and `gifts_age` into a tidy version of `spending`, `gender` and `age` respectively.
+
+```{r}
+spending <- historical_spending %>% pivot_longer(Candy:GiftCards, names_to = "Gifts", values_to = "Amount")
+spending <- spending %>% 
+  mutate(Year = make_date(Year, 2, 14))
+gender <- gifts_gender %>%
+  select(-SpendingCelebrating) %>% 
+  pivot_longer(Candy:GiftCards, names_to = "Gifts", values_to = "Percentage")
+age <- gifts_age %>% 
+  select(-SpendingCelebrating) %>%
+  pivot_longer(Candy:GiftCards, names_to = "Gifts", values_to = "Percentage")
+```
+
+## Plot
+
+### Plot 1
+
+When exploring the data on `spending`, we are making the assumption that the expenditure does not take inflation into account. There is a need to take inflation into account as a rise in expenditure caused by inflation would be misleading in that higher prices due to inflation would naturally increase expenditure. 
+To account for inflation, we sourced data from [Macrotrends](https://www.macrotrends.net/global-metrics/countries/USA/united-states/inflation-rate-cpi) that showed the U.S. year-to-year inflation rate. This inflation data is further corroborated by the [Federal Reserve Bank of Minneapolis](https://www.minneapolisfed.org/about-us/monetary-policy/inflation-calculator/consumer-price-index-1913-).
+Using an inflation calculator, we will set the base price to 2010. In other words, the expenditure is adjust to the monetary value in 2010.
+
+```{r}
+inflation <- c(1, 1.0316, 1.0530, 1.0684, 1.0857, 1.087, 1.101, 1.1242, 1.1516, 1.1724, 1.1869, 1.2427, 1.3421)
+year <- c(2010:2022)
+us_inflation <- tibble(year, inflation)
+us_inflation <- us_inflation %>%
+  mutate(year = make_date(year, 2, 14))
+spending <- spending %>% left_join(us_inflation, by = c("Year" = "year")) %>%
+  mutate(adj_for_inflation = Amount/inflation)
+```
+
+For our first plot,  we chose a **line plot**. We want to create a visualisation of the spending trends on each type of gift over the years. Given that there are seven different types of gifts, a line plot would be suitable in explicitly comparing the difference on each type of gift spending across the years.
+
+```{r}
+ggplot(spending, aes(x = Year, y = adj_for_inflation, color = Gifts)) + 
+  geom_line(size = 1.1) +
+  scale_color_manual(values = c("Candy" = "#E69F00", 
+                                "Clothing" = "#56B4E9", 
+                                "EveningOut" = "#009E73", 
+                                "Flowers" = "#F0E442", 
+                                "GiftCards" = "#0072B2", 
+                                "GreetingCards" = "#D55E00", 
+                                "Jewelry" = "#CC79A7")) +
+  labs(title = "Trends in Valentine's Day Spending by Gift Type Over the Years",
+       subtitle = "Adjusted for inflation", 
+       x = "Year", y = "Amount per person (in USD)", caption = "Figure 1") +
+  geom_vline(aes(xintercept = as_date("2021-02-14")), 
+             linetype = 2, color = "gray70") +
+  annotate("text", x = as.Date("2018-06-01"), y = 20, 
+           label = "Anomaly due to\nCOVID-19 Pandemic", 
+           size = 4, color = "gray20") +
+  annotate("curve", x = as.Date("2020-01-01"), y = 21, 
+           xend = as.Date("2020-12-14"), yend = 25, 
+           arrow = arrow(length = unit(0.2, "cm"), type = "closed"), 
+           color = "gray20", curvature = -0.2) +
+  annotate("curve", x = as.Date("2020-03-01"), y = 18,
+           xend = as.Date("2020-12-01"), yend = 18, 
+           arrow = arrow(length = unit(0.2, "cm"), type = "closed"), 
+           color = "gray20") +
+  theme_minimal()
+```
+
+*Note that the data collected in 2020 was done before the COVID-19 pandemic reached the U.S..*
+
+### Plot 2
+
+For the second plot, we would want to explore how gender correlates to gifts spending on different categories. We chose a **bar plot** as it is clearer to identify the side-by-side comparison of the spending on the different gifts categories.
+
+```{r}
+ggplot(gender, aes(x = Gender, y = Percentage)) +
+  geom_col(aes(fill = Gender), position = "dodge") +
+  scale_fill_manual(values = c("Men" = "skyblue", "Women" = "salmon")) +
+  facet_wrap(~ Gifts) +
+  labs(title = "Percentage of each gender choosing to spend on different gift types",
+       x = "", y = "Percentage", fill = "", caption = "Figure 2") +
+  geom_text(aes(label = Percentage), nudge_y = -7) +
+  theme_test() +
+  theme(legend.position = "top",
+        plot.title = element_text(size = 11),
+        axis.text.x = element_blank(),
+        axis.ticks.x = element_blank())
+```
+
+*Note that we assume the data for the above plot remains relatively consistent throughout the years.*
+
+*Note that the plot shows the __percentage__ of people who indicated that they will celebrate Valentine's Day or plan to spend during Valentine's Day on the different types of gifts. As one can choose to spend on more than one type of gift, the result does not add up to 100%.*
+
+### Plot 3
+
+For our final plot, we would use a **heat map** to show how different age groups choose to spend on the different types of gifts. We chose a heat map as it is easier to identify patterns across different categories. In this case, we can look at an age category to easily identify which gifts are more popular at that age group. Similarly, from the gifts category, we can also identify how the gifts popularity changes across the age group.
+
+By using a darker colour to represent more popular gifts and vice versa, we can make it clearer and easier for people who are not interested in seeing numbers. We used colours from `viridis` to make the plot more colour blind-friendly. We chose red to fit the Valentine's Day theme.
+
+```{r}
+text_dark <- age %>% filter(Percentage <= 20)
+text_light <- age %>% filter(Percentage > 20)
+ggplot(age, aes(x = Age, y = Gifts, fill = Percentage)) +
+  geom_tile(color = "white") +
+  scale_fill_viridis_c(option = "F", direction = -1) +
+  labs(title = "Spending on Gift Types by Age",
+       x = "Age", y = "Gift Type", fill = "Percentage*", caption = "Figure 3",
+       subtitle = "* Percentage of people celebrating who choose to spend on each gift type") +
+  geom_text(data = text_light, aes(label = str_c(Percentage, "%")), color = "white") +
+  geom_text(data = text_dark, aes(label = str_c(Percentage, "%"))) +
+  theme_classic() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1, size = 9),
+        legend.title = element_text(size = 9),
+        axis.line = element_blank(),
+        axis.ticks = element_line(lineend = 2))
+```
+
+*Note that we assume the data for the above plot remains relatively consistent throughout the years.*
+
+*Note that the plot shows the __percentage__ of people who indicated that they will celebrate Valentine's Day or plan to spend during Valentine's Day on the different types of gifts. The percentage does not add up to 100% as respondents may plan to spend on more than one type of gift.* 
+
+## Discussions
+
+This discussion explores and explains the different factors influencing the popularity and fluctuations in spending on Valentine's Day gifts types, focusing on three popular categories which are candies, jewelry, and gift cards. 
+
+### Candies
+
+Our above figures show that candies (including chocolates and other sweet confectioneries) have consistently been one of the top gift choices (Figure 3) even against health concerns and the backdrop of a worsening economic climate.  
+
+Looking at gender trends, both men and women show a high preference for candy, with over 50% of each gender selecting it (Figure 2). Moreover, spending on candy has gradually increased over the years (Figure 1), with a strong preference among younger people (Figure 3). In fact, 70% of people aged 18 to 24 chose candy as their Valentine’s gift of choice (Figure 3). This could be because candy is affordable, which is especially appealing to younger adults who might be on tighter budgets. 
+
+Peculiarly, older adults continue to buy candies despite its potential health risks, such as diabetes and heart disease. Studies have shown that older adults tend to be more health-conscious (see: https://pmc.ncbi.nlm.nih.gov/articles/PMC10424560/), yet 50-60% of middle-aged to older adults (35 to 65) (Figure 3) picked them out as a Valentine's Day gift. Even among seniors (65+), 40% of them still chose candy for their gift (Figure 3). Candy’s popularity, even among the health conscious elderly, might be due to tradition. Giving sweets in the U.S., especially chocolates, is a staple of Valentine’s Day. (see: http://angelineclose.com/wp-content/uploads/2011/02/Loved-and-Loathed.pdf). Candy is often portrayed in popular media as a symbol of love and affection, making it a necessary gift for many people. Its low price also makes it accessible to a wide range of consumers, especially younger adults who may have financial constraints. This combination of tradition and affordability keeps the demand for candy steady, even during economic downturns or public health crises.
+
+The COVID-19 pandemic caused a small decrease in expenditure of candies per person (Figure 1). The slight decline in comparison to other gift types indicates that its affordability and traditional appeal helped maintain its high demand even during economically challenging times.
+
+In short, candy remains one of the top Valentine’s Day gifts because it’s inexpensive, widely appreciated, and rooted in tradition. While health considerations reduce its popularity among older people, tradition and cost seem to keep candy at the top of the list, especially among younger people.
+
+### Jewelry
+
+Jewelry is another popular traditional Valentine's Day gift but it exhibits a different spending pattern compared to candies. Being a luxury item, jewelry spending is highly sensitive to economic and personal financial conditions.
+
+During the COVID-19 pandemic, there was a large decrease in expenditure on jewelry (Figure 1) in contrast to candies' marginal decrease. Social restrictions and economic challenges such as widespread income reductions and job losses significantly reduced demand for luxury items like jewelry as people were already struggling with daily necessities. Moreover, the decrease in jewelry spending was not compensated by increased purchases of other gift types. This suggests that consumers viewed jewelry purchases as postponable, opting to delay purchases until their financial condition improved. This is reflected after COVID-19, as economic conditions are improved, jewelry spending increased rapidly as people returned to their original jobs and started rebuilding their financial stability. This shift has thus sparked a resurgence in jewelry purchases, driving its recovery as reflected in the graph, even as the economy gradually stabilises. (Figure 1)
+
+The tradition of jewelry giving is strong, particularly as a symbol of significant romantic gesture like engagements and anniversaries. This is especially so among the younger generations (Figure 3), where the age groups with the highest percentage of jewelry spending are 18-24 and 25-34, at 33% and 34%, respectively. This trend surprised us as we had initially assumed that older individuals would be the ones spending more on jewelry than younger individuals since they were the ones with greater purchasing power and savings. This could be because younger adults have fewer financial obligations as compared to older adults who may have other financial responsibilities such as needing to support their families or to save money for their retirement. Also, younger adults may be more willing to splurge on these gifts as they see it as a way to show affection or to impress their partners, while older adults, often in stable long-term relationships, may feel less of a need to do so.
+
+Gender trends also play a role in jewelry purchasing patterns. This trend aligns with cultural traditions where men often buy jewelry for women, including engagement rings for proposals, especially since Valentine’s Day is being regarded as one of the most popular days for engagements in the U.S. (see: https://www.psychologytoday.com/sg/blog/buddy-system/202302/proposing-on-valentines-day-meet-the-in-laws). Historically, jewelry has also been more associated with femininity, with women incorporating it as a complement to their outfits, leading men to purchase jewelry as gifts. This is evident from the disparity of 30% and 14% of men and women gifting jewelry respectively (Figure 2).
+
+### Gift cards
+
+The purchase of gift cards showed an intriguing trend during the pandemic, highlighting a shift in consumer behavior toward greater practicality and adaptability.
+
+During the COVID-19 pandemic, Gift cards contrasted the overall decline in Valentine's Day spending as it marginally increased (Figure 1), highlighting a notable shift in consumer behaviour. This suggests that people gravitated towards gift cards due to their practicality and flexibility, viewing them as an alternative Valentine's Day gift that offers recipients the freedom to choose what they truly want or need during uncertain times (see: https://www.bhnrewards.com/blog/trends-research-spotlight-gift-cards-are-more-popular-than-ever/). Additionally, the change in gift preferences toward gift cards is a response to the limitations imposed by the pandemic. Social restrictions made offline shopping difficult, and consumers thus sought alternatives. Gift cards flexible nature allows them to be purchased and gifted through online platforms, making them a suitable and attractive gift during the pandemic.
+
+This preference for gift cards was also consistent across all age groups, with a relatively stable 19% to 23% (Figure 3) of respondents in each age group planning to spend on gift cards. Unlike other gift types that fluctuated due to differing priorities and preferences among various age demographics, gift cards maintained a universal appeal. Their versatility and ease of use make them suitable for recipients of any age, reinforcing the idea that practicality was a key consideration for consumers.
+
+## Summary
+
+The Valentine's Day spending on candy, jewelry, and gift cards can show the fluctuation of consumer spending between necessary items and those of luxury. Candy, being one of the traditional and affordable gifts, always sees a demand irrespective of the contingencies related to economic factors or health aspects. Jewelry, being related to items of luxury, reflects spending that is directly related to economic stability and disposable income. Gift cards signal the dynamism in consumer behaviour, in which external factors like a global pandemic can and does alter preferences and spending habits.
+
+Overall, differences in the amount that consumers spend on various categories of goods at Valentine's Day reflect not just individual decisions but of more general economic principles and societal changes. Valentine's Day aptly acts as a miniature model of consumer behaviour, showing how tradition, economic conditions, and external factors interact to produce spending habits both on essential and non-essential goods.
+
+### Teamwork
+
+Albertus - Write up on the discussion of Gift Cards, Summary and editing
+
+Yong Chee - Write up on introduction, code chunk on Data cleaning, inflation, plot 2 and aesthetics
+
+Yan Xin - Write up on the discussion of Jewelry, code chunk on plot 3, generation of idea
+
+Jia Jie - Write up on the discussion of Candies, code chunk on plot 1, generation of idea
+
+## References
+
+Data used in this report:
+<https://github.com/rfordatascience/tidytuesday/blob/master/data/2024/2024-02-13/readme.md>
+
+More information on the data:
+<https://www.kaggle.com/datasets/infinator/happy-valentines-day-2022>
+
+Macrotrends - U.S. year-to-year inflation data:
+<https://www.macrotrends.net/global-metrics/countries/USA/united-states/inflation-rate-cpi>
+
+Federal Reserve Bank of Minneapolis - (Cross-reference to Macrotrends):
+<https://www.minneapolisfed.org/about-us/monetary-policy/inflation-calculator/consumer-price-index-1913->
+
+Age Group Differences in the Awareness of Lifestyle Factors Impacting Cardiovascular Risk: A Population-Level Study - Used in Discussion on Candies:
+<https://pmc.ncbi.nlm.nih.gov/articles/PMC10424560/>
+
+A Holiday Loved and Loathed: A Consumer Perspective of Valentine’s Day - Used in Discussion on Candies:
+<http://angelineclose.com/wp-content/uploads/2011/02/Loved-and-Loathed.pdf>
+
+Proposing on Valentine's Day? Meet the In-Laws - Used in Discussion on Jewelry: 
+<https://www.psychologytoday.com/sg/blog/buddy-system/202302/proposing-on-valentines-day-meet-the-in-laws>
+
+Trends Research Spotlight: Gift Cards Are More Popular Than Ever - Used in Discussion on Gift Cards:
+<https://www.bhnrewards.com/blog/trends-research-spotlight-gift-cards-are-more-popular-than-ever/>
