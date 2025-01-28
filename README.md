@@ -1,4 +1,4 @@
-# DSA2101-Valentine-s-Project
+# DSA2101-Valentine's-Project
 
 This project aims to explore and explain the different factors influencing the popularity and fluctuations in spending on Valentine’s Day gifts types, focusing on three popular categories which are candies, jewelry, and gift cards.
 
