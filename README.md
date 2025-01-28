@@ -2,7 +2,7 @@
 
 This project aims to explore and explain the different factors influencing the popularity and fluctuations in spending on Valentine’s Day gifts types, focusing on three popular categories which are candies, jewelry, and gift cards.
 
-View the html -> [Link](https://raw.githack.com/AlbertsusL/DSA2101-Valentine-s-Project/refs/heads/main/Valentine's%20Project.html)
+View the report -> [Link](https://raw.githack.com/AlbertsusL/DSA2101-Valentine-s-Project/refs/heads/main/Valentine's%20Project.html)
 
 Project done by: Wang Jia Jie, Loh Yan Xin, Chan Yong Chee, Albertus Frederick Ashali
 
